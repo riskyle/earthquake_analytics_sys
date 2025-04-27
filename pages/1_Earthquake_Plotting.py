@@ -152,12 +152,21 @@ with st.sidebar:
     
     # Create expandable sections for different filter groups
     with st.expander("📍 Location Filters", expanded=True):
-        # Get unique provinces and areas
+        # Get unique provinces
         province_options = ["All"] + sorted(df["PROVINCE"].dropna().unique().tolist())
-        area_options = ["All"] + sorted(df["AREA"].dropna().unique().tolist())
         
-        # Add filters to sidebar
+        # Add province filter
         province_selected = st.selectbox("Select Province:", province_options)
+        
+        # Filter areas based on selected province
+        if province_selected == "All":
+            area_options = ["All"] + sorted(df["AREA"].dropna().unique().tolist())
+        else:
+            # Get only areas that belong to the selected province
+            province_areas = df[df["PROVINCE"] == province_selected]["AREA"].dropna().unique().tolist()
+            area_options = ["All"] + sorted(province_areas)
+        
+        # Add area filter
         area_selected = st.selectbox("Select Area:", area_options)
     
     with st.expander("📅 Time Filters", expanded=True):
@@ -205,8 +214,8 @@ with st.sidebar:
         if "INTENSITY" in df.columns:
             available_metrics.append("INTENSITY")
             
-        # Select metric to plot
-        selected_metric = st.selectbox("Select Data to Plot:", available_metrics)
+        # Set default metric to MAGNITUDE
+        selected_metric = "MAGNITUDE"
         
         # Animation speed control
         animation_speed = st.slider(
@@ -294,48 +303,54 @@ if not filtered_df.empty:
             filtered_df, 
             x="DATETIME", 
             y=selected_metric,
-            markers=True,
-            line_shape="spline",
+            line_shape="linear",
             title=f"Earthquake {selected_metric} Over Time",
-            color_discrete_sequence=["#ff5733"]
+            color_discrete_sequence=["#00bfff"]  # Light blue color
         )
         
-        # Add scatter points with hover info
-        fig.add_trace(
-            go.Scatter(
-                x=filtered_df["DATETIME"],
-                y=filtered_df[selected_metric],
-                mode="markers",
-                marker=dict(color="#ff5733", size=6),
-                name="Earthquakes",
-                hovertemplate="<b>Date:</b> %{x|%d %b %Y}<br>" +
-                             f"<b>{selected_metric}:</b> %{{y:.2f}}<br>" +
-                             "<extra></extra>"
-            )
-        )
-        
-        # Update layout for better appearance
+        # Update layout for dark theme appearance
         fig.update_layout(
             xaxis_title="Date",
             yaxis_title=selected_metric,
             hovermode="closest",
-            plot_bgcolor="white",
-            font=dict(family="Arial, sans-serif"),
+            plot_bgcolor="#121212",  # Dark background
+            paper_bgcolor="#121212", # Dark background
+            font=dict(
+                family="Arial, sans-serif",
+                color="white"  # White text
+            ),
             showlegend=False,
-            height=500
+            height=500,
+            margin=dict(l=10, r=10, t=40, b=10),
+            title={
+                'font': {'color': 'white', 'size': 20},
+                'x': 0.05,
+                'xanchor': 'left'
+            }
         )
         
         # Add grid lines
         fig.update_xaxes(
             showgrid=True,
             gridwidth=1,
-            gridcolor="rgba(128, 128, 128, 0.2)",
-            tickangle=45
+            gridcolor="rgba(255, 255, 255, 0.1)",
+            tickformat="%I %p",  # Hour AM/PM format
+            tickangle=0,
+            color="white"
         )
         fig.update_yaxes(
             showgrid=True,
             gridwidth=1,
-            gridcolor="rgba(128, 128, 128, 0.2)"
+            gridcolor="rgba(255, 255, 255, 0.1)",
+            color="white"
+        )
+        
+        # Update the line appearance
+        fig.update_traces(
+            line=dict(width=1.5),
+            hovertemplate=f"<b>{selected_metric}:</b> %{{y:.2f}}<br>" +
+                         "<b>Date:</b> %{x|%d %b %Y %I:%M %p}<br>" +
+                         "<extra></extra>"
         )
         
         # Display static chart
@@ -345,7 +360,8 @@ if not filtered_df.empty:
         
     else:
         # Initialize the chart with first data point
-        chart = chart_container.line_chart(
+        chart_placeholder = chart_container.empty()
+        chart = chart_placeholder.line_chart(
             filtered_df.iloc[:1].set_index("DATETIME")[[selected_metric]],
             height=500
         )
@@ -381,8 +397,9 @@ if not filtered_df.empty:
         
         # Reset chart if reset button clicked
         if reset_button:
-            chart_container.empty()
-            chart = chart_container.line_chart(
+            # Clear old chart and create a new one
+            chart_placeholder.empty()
+            chart = chart_placeholder.line_chart(
                 filtered_df.iloc[:1].set_index("DATETIME")[[selected_metric]],
                 height=500
             )
