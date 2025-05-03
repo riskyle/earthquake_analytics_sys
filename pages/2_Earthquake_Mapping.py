@@ -61,7 +61,7 @@ st.markdown("""
 st.markdown("<h1 class='page-title'>🔍 Seismic Activity Analyzer - Philippines</h1>", unsafe_allow_html=True)
 
 # Create tabs for different sections
-tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🌍 Interactive Map", "📈 Analytics"])
+tab1, tab2 = st.tabs(["📊 Dashboard", "🌍 Interactive Map"])
 
 with tab1:
     # Introduction section with a different layout
@@ -200,14 +200,6 @@ with tab1:
     with col4:
         st.metric("Time Range", date_span)
     
-    # Add a quick histogram
-    st.markdown("<h3 class='section-header'>Magnitude Distribution</h3>", unsafe_allow_html=True)
-    fig = px.histogram(seismic_data, x="MAGNITUDE", nbins=30,
-                     color_discrete_sequence=["#3366cc"],
-                     title="Distribution of Earthquake Magnitudes")
-    fig.update_layout(bargap=0.1)
-    st.plotly_chart(fig, use_container_width=True)
-
 # Process data for visualization with different variable names
 seismic_data = seismic_data.sort_values("TIME")
 
@@ -455,6 +447,7 @@ with tab2:
     )
     
     # Map configuration with more compact UI
+    st.markdown("<h4 style='color:#3366cc; margin-top:10px; margin-bottom:5px;'>Map View Settings</h4>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -475,9 +468,42 @@ with tab2:
     with col3:
         map_zoom = st.slider("Zoom Level", 3, 11, 5)  # Changed range
     
+    # Add advanced view controls
+    st.markdown("<h4 style='color:#3366cc; margin-top:10px; margin-bottom:5px;'>Advanced View Controls</h4>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        bearing = st.slider("Map Rotation (degrees)", 0, 359, 15, 5, 
+                           help="Rotate the map to view from different directions")
+    
+    with col2:
+        if st.button("Reset View", use_container_width=True):
+            angle = 35
+            bearing = 15
+            map_zoom = 5
+            map_view.latitude = 12.8797
+            map_view.longitude = 121.7740
+    
+    # Add position controls
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        view_lat = st.number_input("Latitude", -90.0, 90.0, 12.8797, 0.1, format="%.4f",
+                                  help="Central latitude position")
+    
+    with col2:
+        view_lon = st.number_input("Longitude", -180.0, 180.0, 121.7740, 0.1, format="%.4f",
+                                  help="Central longitude position")
+    
+    # Set center position from input
+    if st.button("Center View", use_container_width=True):
+        map_view.latitude = view_lat
+        map_view.longitude = view_lon
+    
     # Update view settings
     map_view.pitch = angle
     map_view.zoom = map_zoom
+    map_view.bearing = bearing
     
     # Create and display map
     if active_layers:
@@ -505,7 +531,7 @@ with tab2:
         )
         
         st.pydeck_chart(map_deck, use_container_width=True)
-        st.caption("Hover over events to see details. Use mouse wheel to zoom and drag to pan.")
+        st.caption("Hover over events to see details. Use the controls above to change the viewing angle and position.")
     else:
         st.error("Please select at least one map layer to display.")
 
@@ -517,64 +543,50 @@ with tab2:
     
     with col1:
         st.markdown("""
-        <div style='background-color:#f8f8f8; padding:15px; border-radius:8px;'>
-            <h4 style='color:#3366cc;'>Time Between Events</h4>
+        <div style='background-color:#121212; padding:20px; border-radius:8px; color:white; border:1px solid rgba(255,255,255,0.1);'>
+            <h4 style='color:#4d94ff; font-size:1.2rem; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:8px; margin-bottom:12px;'>Time Between Events (Connection Lines)</h4>
             <div class='legend-container'>
-                <div class='legend-marker' style='background-color: rgba(50, 150, 255, 0.8);'></div>
-                <div>Less than 2 hours</div>
+                <div class='legend-marker' style='background-color: rgba(50, 150, 255, 0.8); border:1px solid white;'></div>
+                <div><strong>Blue Lines:</strong> Less than 2 hours between events</div>
             </div>
-            <div class='legend-container'>
-                <div class='legend-marker' style='background-color: rgba(50, 180, 50, 0.8);'></div>
-                <div>2 - 24 hours</div>
+            <div class='legend-container' style='margin-top:12px;'>
+                <div class='legend-marker' style='background-color: rgba(50, 180, 50, 0.8); border:1px solid white;'></div>
+                <div><strong>Green Lines:</strong> 2 - 24 hours between events</div>
             </div>
-            <div class='legend-container'>
-                <div class='legend-marker' style='background-color: rgba(200, 100, 50, 0.8);'></div>
-                <div>More than 24 hours</div>
+            <div class='legend-container' style='margin-top:12px;'>
+                <div class='legend-marker' style='background-color: rgba(200, 100, 50, 0.8); border:1px solid white;'></div>
+                <div><strong>Orange Lines:</strong> More than 24 hours between events</div>
             </div>
+            <p style='margin-top:15px; font-size:0.9rem; opacity:0.8;'>The lines connect sequential events in the same region, showing the time relationship between earthquakes.</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
-        <div style='background-color:#f8f8f8; padding:15px; border-radius:8px;'>
-            <h4 style='color:#3366cc;'>Earthquake Magnitude Scale</h4>
-            <p>The size of circles on the map represents the magnitude of each earthquake.</p>
-            <ul>
-                <li><b>Minor:</b> 2.0 - 3.9</li>
-                <li><b>Light:</b> 4.0 - 4.9</li>
-                <li><b>Moderate:</b> 5.0 - 5.9</li>
-                <li><b>Strong:</b> 6.0 - 6.9</li>
-                <li><b>Major:</b> 7.0 or greater</li>
-            </ul>
+        <div style='background-color:#121212; padding:20px; border-radius:8px; color:white; border:1px solid rgba(255,255,255,0.1);'>
+            <h4 style='color:#4d94ff; font-size:1.2rem; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:8px; margin-bottom:12px;'>Earthquake Magnitude Scale (Circle Size)</h4>
+            <p>Circles on the map are sized proportionally to the earthquake's magnitude:</p>
+            <div style='margin-left:10px; margin-top:10px;'>
+                <div style='display:flex; align-items:center; margin-bottom:8px;'>
+                    <div style='width:10px; height:10px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
+                    <div><strong>Minor:</strong> 2.0 - 3.9 (Smallest Circles)</div>
+                </div>
+                <div style='display:flex; align-items:center; margin-bottom:8px;'>
+                    <div style='width:15px; height:15px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
+                    <div><strong>Light:</strong> 4.0 - 4.9</div>
+                </div>
+                <div style='display:flex; align-items:center; margin-bottom:8px;'>
+                    <div style='width:20px; height:20px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
+                    <div><strong>Moderate:</strong> 5.0 - 5.9</div>
+                </div>
+                <div style='display:flex; align-items:center; margin-bottom:8px;'>
+                    <div style='width:25px; height:25px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
+                    <div><strong>Strong:</strong> 6.0 - 6.9</div>
+                </div>
+                <div style='display:flex; align-items:center;'>
+                    <div style='width:30px; height:30px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
+                    <div><strong>Major:</strong> 7.0 or greater (Largest Circles)</div>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-
-# Analytics tab with new content
-with tab3:
-    st.markdown("<h3 class='section-header'>Seismic Activity Analysis</h3>", unsafe_allow_html=True)
-    
-    # Monthly trend chart
-    filtered_data["Month"] = filtered_data["TIME"].dt.strftime("%Y-%m")
-    monthly_data = filtered_data.groupby("Month").agg({
-        "MAGNITUDE": ["count", "mean", "max"]
-    }).reset_index()
-    monthly_data.columns = ["Month", "Events", "Avg_Magnitude", "Max_Magnitude"]
-    
-    st.markdown("#### Monthly Seismic Activity Trends")
-    fig = px.line(monthly_data, x="Month", y=["Events", "Avg_Magnitude", "Max_Magnitude"],
-                 title="Seismic Activity by Month",
-                 labels={"value": "Value", "variable": "Metric"},
-                 color_discrete_sequence=["#3366cc", "#ff9900", "#dc3912"])
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Distribution by region
-    region_data = filtered_data["PROVINCE"].value_counts().reset_index()
-    region_data.columns = ["Province", "Event_Count"]
-    region_data = region_data.sort_values("Event_Count", ascending=False).head(10)
-    
-    st.markdown("#### Top 10 Seismically Active Regions")
-    fig = px.bar(region_data, x="Province", y="Event_Count", 
-                color="Event_Count", color_continuous_scale="Blues",
-                labels={"Province": "Region", "Event_Count": "Number of Events"})
-    fig.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)

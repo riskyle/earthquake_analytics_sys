@@ -353,6 +353,39 @@ with tab2:
                     template="plotly_dark"  # Add dark theme
                 )
                 
+                # Fix color scale when only one year is selected
+                if len(selected_years) == 1:
+                    # For single year, use a solid color instead of a gradient
+                    year_val = selected_years[0]
+                    fig1.update_traces(marker_color="#E377C2")  # Use a solid pink color
+                    # Update legend to show just the year without decimals
+                    fig1.data[0].name = str(int(year_val))
+                    # Completely hide the legend for a cleaner look
+                    fig1.update_layout(showlegend=False)
+                else:
+                    # For multiple years, make sure legend is prominent and visible
+                    # Convert all year values to integers in the legend
+                    for i, trace in enumerate(fig1.data):
+                        if isinstance(trace.name, (int, float)):
+                            fig1.data[i].name = str(int(trace.name))
+                    
+                    # Set legend to a visible position that doesn't overlap with bars
+                    fig1.update_layout(
+                        legend=dict(
+                            orientation="v",  # Vertical orientation
+                            yanchor="top",
+                            y=0.99,
+                            xanchor="right",
+                            x=0.99,
+                            bgcolor="rgba(17, 17, 17, 0.8)",
+                            bordercolor="rgba(255, 255, 255, 0.3)",
+                            borderwidth=1,
+                            font=dict(size=14, color="white"),
+                            title_font=dict(size=16, color="white")
+                        ),
+                        showlegend=True  # Explicitly show legend
+                    )
+                
                 # Update layout with dark theme
                 fig1.update_layout(
                     xaxis=dict(
@@ -373,8 +406,27 @@ with tab2:
                     plot_bgcolor="#111111",
                     font=dict(family="Arial, sans-serif", color="white"),
                     title_font=dict(size=18, color="white"),
-                    title_x=0.5
+                    title_x=0.5,
+                    coloraxis_showscale=False  # Hide color scale when redundant
                 )
+                
+                # Improve legend visibility for multiple years
+                if len(selected_years) > 1:
+                    fig1.update_layout(
+                        legend=dict(
+                            orientation="v",
+                            yanchor="top",
+                            y=0.99,
+                            xanchor="right",
+                            x=0.99,
+                            bgcolor="rgba(17, 17, 17, 0.8)",
+                            bordercolor="rgba(255, 255, 255, 0.3)",
+                            borderwidth=1,
+                            font=dict(size=14, color="white"),
+                            title_font=dict(size=16, color="white")
+                        ),
+                        showlegend=True  # Explicitly show legend for multiple years
+                    )
                 
                 # Display the chart
                 st.plotly_chart(fig1, use_container_width=True)
@@ -392,6 +444,16 @@ with tab2:
                     color_discrete_sequence=px.colors.qualitative.Bold,
                     template="plotly_dark"  # Add dark theme
                 )
+                
+                # Fix color scale when only one year is selected
+                if len(selected_years) == 1:
+                    # For single year, use a solid color instead of a gradient
+                    year_val = selected_years[0]
+                    fig2.update_traces(line_color="#E377C2", marker_color="#E377C2")  # Use a solid pink color
+                    # Update legend to show just the year without decimals
+                    fig2.data[0].name = str(int(year_val))
+                    # Completely hide the legend for a cleaner look
+                    fig2.update_layout(showlegend=False)
                 
                 # Update layout with dark theme
                 fig2.update_layout(
@@ -413,8 +475,32 @@ with tab2:
                     plot_bgcolor="#111111",
                     font=dict(family="Arial, sans-serif", color="white"),
                     title_font=dict(size=18, color="white"),
-                    title_x=0.5
+                    title_x=0.5,
+                    coloraxis_showscale=False  # Hide color scale when redundant
                 )
+                
+                # Improve legend visibility for multiple years
+                if len(selected_years) > 1:
+                    fig2.update_layout(
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="center",
+                            x=0.5,
+                            bgcolor="rgba(17, 17, 17, 0.7)",
+                            bordercolor="rgba(255, 255, 255, 0.2)",
+                            borderwidth=1,
+                            font=dict(size=12, color="white"),
+                            title_font=dict(size=14, color="white")
+                        ),
+                        showlegend=True  # Explicitly show legend for multiple years
+                    )
+                
+                # Ensure years are displayed as integers in the legend
+                for trace in fig2.data:
+                    if isinstance(trace.name, (int, float)):
+                        trace.name = str(int(trace.name))
                 
                 # Display the chart
                 st.plotly_chart(fig2, use_container_width=True)

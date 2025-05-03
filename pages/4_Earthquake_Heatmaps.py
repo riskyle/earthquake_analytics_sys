@@ -56,18 +56,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Improved header with better styling
-st.markdown(
-    """
-    <h1 class='main-header'>🌋 Earthquake Intensity Heatmap Visualization 🌍</h1>
-    <p class='description'>
-        Interactive heatmap visualizations showing earthquake magnitude distribution and epicenter density across the Philippines.
-    </p>
-    """, unsafe_allow_html=True
-)
+# # Improved header with better styling
+# st.markdown(
+#     """
+#     <h1 class='main-header'>🌋 Earthquake Intensity Heatmap Visualization 🌍</h1>
+#     <p class='description'>
+#         Interactive heatmap visualizations showing earthquake magnitude distribution and epicenter density across the Philippines.
+#     </p>
+#     """, unsafe_allow_html=True
+# )
 
 # Create tabs for better organization
-tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🌊 Ripple Animation", "🔥 Density Heatmap"])
+tab1, tab2 = st.tabs(["🗾 Earthquake Intensity Heatmap", "🌊 Ripple Animation"])
 
 # Cache data loading function
 @st.cache_data
@@ -91,6 +91,8 @@ def load_earthquake_data():
     # Add date and time column if it doesn't exist
     if "DATE & TIME" not in df.columns:
         df["DATE & TIME"] = df["DATE"]
+    else:
+        df["DATE & TIME"] = pd.to_datetime(df["DATE & TIME"], errors="coerce")
     
     # Sort by date
     df = df.sort_values("DATE")
@@ -98,6 +100,9 @@ def load_earthquake_data():
     # Add year and month for time-based filtering
     df["YEAR"] = df["DATE"].dt.year
     df["MONTH"] = df["DATE"].dt.month
+    
+    # Add a formatted date column specifically for tooltips
+    df["DATE_STR"] = df["DATE & TIME"].dt.strftime("%d %b %Y - %I:%M %p")
     
     return df
 
@@ -243,145 +248,248 @@ elif selected_epicenter == "Area":
 filtered_df_display = filtered_df.copy()
 filtered_df_display["DATE_FORMATTED"] = filtered_df_display["DATE"].dt.strftime("%d %B %Y")
 
+# Also add the DATE_STR column to filtered_df if not already present
+if "DATE_STR" not in filtered_df.columns:
+    filtered_df["DATE_STR"] = filtered_df["DATE & TIME"].dt.strftime("%d %b %Y - %I:%M %p")
+
 # Add some metrics to the sidebar
 with st.sidebar:
     st.markdown("### 📊 Current Selection")
     col1, col2 = st.columns(2)
     col1.metric("Total Records", f"{len(filtered_df):,}")
-    col2.metric("Avg Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")
-    
-    # Add a color legend for categories
-    if "CATEGORY" in df.columns and len(filtered_df) > 0:
-        st.markdown("### 🎨 Category Color Legend")
-        # Define color mapping based on shaking intensity scale (I-X)
-        color_mapping = {
-            "SCARCELY PERCEPTIBLE": "#FFFFFF",   # White (I)
-            "SLIGHTLY FELT": "#A0E6FF",          # Light Blue (II) 
-            "WEAK": "#00FFFF",                   # Cyan (III)
-            "MODERATELY STRONG": "#00FF00",      # Green (IV)
-            "STRONG": "#B0FF00",                 # Light Green (V)
-            "VERY STRONG": "#FFFF00",            # Yellow (VI)
-            "DESTRUCTIVE": "#FFA500",            # Orange (VII)
-            "VERY DESTRUCTIVE": "#FF6600",       # Dark Orange (VIII)
-            "DEVASTATING": "#FF0000",            # Red (IX)
-            "COMPLETELY DEVASTATING": "#990000"  # Dark Red (X)
-        }
-        
-        # Show legend for categories present in filtered data
-        present_categories = filtered_df["CATEGORY"].unique()
-        for category in present_categories:
-            if category in color_mapping:
-                color = color_mapping[category]
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                    <div style="width: 15px; height: 15px; background-color: {color}; margin-right: 10px; border-radius: 2px;"></div>
-                    <div style="font-size: 0.9rem;">{category.title()}</div>
-                </div>
-                """, unsafe_allow_html=True)
+    col2.metric("Avg Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")  
 
-# Tab 1: Data Overview
+# Tab 1: Earthquake Intensity Heatmap
 with tab1:
-    st.markdown("<h2 class='sub-header'>📊 Filtered Earthquake Data</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='sub-header'>🗾 Earthquake Intensity Heatmap Visualization</h2>", unsafe_allow_html=True)
     
-    # Display dataframe with better formatting
+    # Description
+    st.markdown("""
+    This heatmap shows the density of earthquake epicenters, with color intensity representing concentration of seismic activity.
+    Areas with more frequent earthquakes appear as brighter hotspots on the map.
+    """)
+    
+    # Map view controls section
+    st.markdown("<h4 style='color: #ff5733; margin-top: 15px;'>Map View Controls</h4>", unsafe_allow_html=True)
+    
+    # Arrange controls in columns
+    view_col1, view_col2, view_col3 = st.columns(3)
+    
+    with view_col1:
+        pitch = st.slider("View Angle (tilt)", 0, 60, 30, help="Adjust the tilt angle of the map")
+    
+    with view_col2:
+        bearing = st.slider("Rotation", 0, 359, 0, help="Rotate the map view")
+    
+    with view_col3:
+        zoom = st.slider("Zoom Level", 4, 10, 5, help="Adjust zoom level")
+    
+    # Map style selection
+    map_style = st.selectbox(
+        "Map Style",
+        options=[
+            "Satellite with Streets",
+            "Satellite",
+            "Dark",
+            "Light",
+            "Navigation Day",
+            "Navigation Night"
+        ],
+        index=2
+    )
+    
+    # Map style dictionary for mapbox
+    mapbox_styles = {
+        "Satellite with Streets": "mapbox://styles/mapbox/satellite-streets-v11",
+        "Satellite": "mapbox://styles/mapbox/satellite-v9",
+        "Dark": "mapbox://styles/mapbox/dark-v10",
+        "Light": "mapbox://styles/mapbox/light-v10",
+        "Navigation Day": "mapbox://styles/mapbox/navigation-day-v1",
+        "Navigation Night": "mapbox://styles/mapbox/navigation-night-v1"
+    }
+    
+    # Layer controls
+    heatmap_col1, heatmap_col2 = st.columns(2)
+    
+    with heatmap_col1:
+        radius = st.slider(
+            "Heatmap Radius", 
+            min_value=10, 
+            max_value=100, 
+            value=40,
+            help="Adjust the radius of influence for each earthquake point"
+        )
+    
+    with heatmap_col2:
+        # Weight by magnitude or just by count
+        weight_by = st.radio(
+            "Heatmap intensity based on:",
+            ["Earthquake Count", "Magnitude Weighted"],
+            horizontal=True
+        )
+    
+    # Create and display heatmap
     if len(filtered_df) > 0:
-        # Add table description
-        st.markdown(f"Showing {len(filtered_df):,} earthquake records based on your filter criteria.")
-        
-        # Display the dataframe with better column selection
-        display_columns = ['DATE_FORMATTED', 'PROVINCE', 'AREA', 'MAGNITUDE', 'CATEGORY', 'LATITUDE', 'LONGITUDE']
-        display_columns = [col for col in display_columns if col in filtered_df_display.columns]
-        
-        st.dataframe(
-            filtered_df_display[display_columns].sort_values("DATE_FORMATTED" if "DATE_FORMATTED" in filtered_df_display.columns else display_columns[0], ascending=False),
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.warning("No data matches your filter criteria. Please adjust your filters.")
-
-    # Province distribution visualization
-    if len(filtered_df) > 0:
-        st.markdown("<h2 class='sub-header'>📌 Earthquake Distribution by Province</h2>", unsafe_allow_html=True)
-        
-        # Count earthquakes by province
-        province_counts = filtered_df["PROVINCE"].value_counts().reset_index()
-        province_counts.columns = ["PROVINCE", "COUNT"]
-        
-        # Create bar chart with improved styling
-        fig1 = px.bar(
-            province_counts,
-            x="PROVINCE",
-            y="COUNT",
-            orientation="v",
-            title=f"Earthquake Distribution by Province ({len(filtered_df):,} Total Records)",
-            labels={"PROVINCE": "Province", "COUNT": "Number of Earthquakes"},
-            text="COUNT",
-            color="COUNT",
-            color_continuous_scale="Viridis"
-        )
-        
-        fig1.update_traces(
-            texttemplate='%{text:,}',
-            textposition='outside',
-            marker_line_color='white',
-            marker_line_width=1.5,
-            hovertemplate="<b>%{x}</b><br>Earthquakes: %{y:,}<br><extra></extra>"
-        )
-        
-        fig1.update_layout(
-            xaxis_title="Province",
-            yaxis_title="Number of Earthquakes",
-            font=dict(family="Arial, sans-serif", size=14),
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=40, r=40, t=60, b=100),
-            xaxis=dict(
-                tickangle=45,
-                tickfont=dict(size=10),
-                showgrid=True,
-                gridwidth=1,
-                gridcolor='rgba(128, 128, 128, 0.2)',
-                categoryorder="total descending"
-            ),
-            yaxis=dict(
-                tickfont=dict(size=12),
-                showgrid=True,
-                gridwidth=1,
-                gridcolor='rgba(128, 128, 128, 0.2)'
-            ),
-            height=500,
-            showlegend=False,
-            title=dict(
-                x=0.5,
-                y=0.95,
-                xanchor='center',
-                yanchor='top'
+        try:
+            # Calculate map center
+            center_lat = filtered_df["LATITUDE"].mean()
+            center_lon = filtered_df["LONGITUDE"].mean()
+            
+            # Create view state with angle controls
+            view_state = pdk.ViewState(
+                latitude=center_lat,
+                longitude=center_lon,
+                zoom=zoom,
+                pitch=pitch,
+                bearing=bearing
             )
-        )
-        
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Add magnitude distribution histogram
-        st.markdown("<h2 class='sub-header'>📊 Magnitude Distribution</h2>", unsafe_allow_html=True)
-        
-        fig_hist = px.histogram(
-            filtered_df, 
-            x="MAGNITUDE",
-            nbins=20,
-            color_discrete_sequence=["#ff5733"],
-            title="Distribution of Earthquake Magnitudes",
-            labels={"MAGNITUDE": "Magnitude", "count": "Frequency"}
-        )
-        
-        fig_hist.update_layout(
-            xaxis_title="Magnitude",
-            yaxis_title="Frequency",
-            bargap=0.1,
-            height=400
-        )
-        
-        st.plotly_chart(fig_hist, use_container_width=True)
+            
+            # Create heatmap layer
+            heatmap_layer = pdk.Layer(
+                "HeatmapLayer",
+                data=filtered_df,
+                get_position=["LONGITUDE", "LATITUDE"],
+                get_weight="MAGNITUDE" if weight_by == "Magnitude Weighted" else 1,
+                aggregation="SUM",
+                radius_pixels=radius,
+                opacity=0.85,
+                pickable=True,
+                color_range=[
+                    # Exact colors matching intensity scale (I-X)
+                    [255, 255, 255],    # I - White (Scarcely Perceptible)
+                    [204, 229, 255],    # II - Light Blue (Slightly Felt)
+                    [0, 255, 255],      # III - Cyan (Weak)
+                    [0, 255, 128],      # IV - Green (Moderately Strong)
+                    [170, 255, 0],      # V - Light Green/Yellow-Green (Strong)
+                    [255, 255, 0],      # VI - Yellow (Very Strong)
+                    [255, 170, 0],      # VII - Orange (Destructive)
+                    [255, 102, 0],      # VIII - Dark Orange (Very Destructive)
+                    [255, 0, 0],        # IX - Red (Devastating)
+                    [153, 0, 0]         # X - Dark Red (Completely Devastating)
+                ],
+                threshold=0.05
+            )
+            
+            # Add invisible scatter plot layer for better hover detection
+            # This layer provides points to hover over but is nearly invisible
+            scatter_layer = pdk.Layer(
+                "ScatterplotLayer",
+                data=filtered_df,
+                get_position=["LONGITUDE", "LATITUDE"],
+                get_radius=1000,  # Small radius
+                get_fill_color=[255, 255, 255, 0],  # Completely transparent
+                pickable=True,
+                opacity=0.0,  # Fully transparent 
+                auto_highlight=True,
+                highlight_color=[255, 255, 255, 50],  # Very subtle highlight
+                stroked=False
+            )
+            
+            # Create and display the mapbox map
+            deck = pdk.Deck(
+                map_style=mapbox_styles[map_style],
+                initial_view_state=view_state,
+                layers=[heatmap_layer, scatter_layer],  # Add the scatter layer under the heatmap
+                tooltip={
+                    "html": """
+                    <div style="background-color: rgba(42, 42, 42, 0.95); color: white; 
+                         padding: 10px; border-radius: 5px; font-family: Arial; width: 250px;">
+                        <div style="font-weight: bold; font-size: 14px;">{PROVINCE}</div>
+                        <div style="margin: 5px 0;">
+                            <span style="color: #aaa;">Magnitude:</span> {MAGNITUDE}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <span style="color: #aaa;">Area:</span> {AREA}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <span style="color: #aaa;">Date/Time:</span> {DATE_STR}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <span style="color: #aaa;">Category:</span> {CATEGORY}
+                        </div>
+                    </div>
+                    """
+                }
+            )
+            
+            # Display the map
+            st.pydeck_chart(deck, use_container_width=True)
+            st.caption("Hover over the map to see earthquake details. Use the sliders above to adjust the view angle, rotation, and zoom.")
+            
+            # Add intensity scale legend
+            st.markdown("<h4 style='color: #ff5733; margin-top: 15px;'>Earthquake Intensity Scale</h4>", unsafe_allow_html=True)
+            
+            # Create a legend table matching the image
+            intensity_scale_html = """
+            <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+                <tr>
+                    <th style="padding: 8px; text-align: center; width: 80px; border: 1px solid #ddd; background-color: #f8f8f8;">Intensity Scale</th>
+                    <th style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #f8f8f8;">Shaking</th>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #FFFFFF; color: black; font-weight: bold;">I</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Scarcely Perceptible</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #CCEBFF; color: black; font-weight: bold;">II</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Slightly Felt</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #00FFFF; color: black; font-weight: bold;">III</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Weak</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #00FF80; color: black; font-weight: bold;">IV</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Moderately Strong</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #AAFF00; color: black; font-weight: bold;">V</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Strong</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #FFFF00; color: black; font-weight: bold;">VI</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Very Strong</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #FFAA00; color: black; font-weight: bold;">VII</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Destructive</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #FF6600; color: white; font-weight: bold;">VIII</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Very Destructive</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #FF0000; color: white; font-weight: bold;">IX</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Devastating</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd; background-color: #990000; color: white; font-weight: bold;">X</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">Completely Devastating</td>
+                </tr>
+            </table>
+            """
+            
+            st.markdown(intensity_scale_html, unsafe_allow_html=True)
+            
+            # Display statistics - keep the existing code
+            with st.expander("📊 View Statistics", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Events", len(filtered_df))
+                    st.metric("Average Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")
+                with col2:
+                    st.metric("Maximum Magnitude", f"{filtered_df['MAGNITUDE'].max():.2f}")
+                    st.metric("Minimum Magnitude", f"{filtered_df['MAGNITUDE'].min():.2f}")
+                with col3:
+                    st.metric("Date Range", f"{start_date} to {end_date}")
+                    if "CATEGORY" in filtered_df.columns:
+                        st.metric("Categories", len(filtered_df["CATEGORY"].unique()))
+            
+        except Exception as e:
+            st.error(f"Error generating heatmap: {str(e)}")
+            st.info("Try adjusting the filters or map settings.")
+    else:
+        st.warning("No data to display with current filters.")
 
 # Tab 2: Ripple Animation
 with tab2:
@@ -530,7 +638,7 @@ with tab2:
                     map_container.pydeck_chart(pdk.Deck(
                         layers=[earthquake_layer, text_layer],
                         initial_view_state=view_state,
-                        tooltip={"text": "Magnitude: {MAGNITUDE}\nArea: {AREA}\nProvince: {PROVINCE}"},
+                        tooltip={"text": "Magnitude: {MAGNITUDE}\nArea: {AREA}\nProvince: {PROVINCE}\nDate/Time: {DATE_STR}"},
                         map_style="mapbox://styles/mapbox/satellite-streets-v11"
                     ))
                     
@@ -588,164 +696,9 @@ with tab2:
         st.pydeck_chart(pdk.Deck(
             layers=[earthquake_layer],
             initial_view_state=view_state,
-            tooltip={"text": "Magnitude: {MAGNITUDE}\nArea: {AREA}\nProvince: {PROVINCE}\nDate: {DATE_FORMATTED}"},
+            tooltip={"text": "Magnitude: {MAGNITUDE}\nArea: {AREA}\nProvince: {PROVINCE}\nDate/Time: {DATE_STR}"},
             map_style="mapbox://styles/mapbox/satellite-streets-v11"
         ))
-
-# Tab 3: Density Heatmap
-with tab3:
-    st.markdown("<h2 class='sub-header'>🔥 Earthquake Epicenter Density Heatmap</h2>", unsafe_allow_html=True)
-    
-    # Description
-    st.markdown("""
-    This heatmap shows the density of earthquake epicenters, with color intensity representing concentration of seismic activity.
-    Areas with more frequent earthquakes appear as brighter hotspots on the map.
-    """)
-    
-    # Additional heatmap controls
-    heatmap_col1, heatmap_col2 = st.columns(2)
-    
-    with heatmap_col1:
-        radius = st.slider(
-            "Heatmap Radius", 
-            min_value=5, 
-            max_value=50, 
-            value=20,
-            help="Adjust the radius of influence for each earthquake point"
-        )
-    
-    with heatmap_col2:
-        map_style = st.selectbox(
-            "Map Style",
-            options=["Satellite", "Terrain", "Dark", "Light"],
-            index=2,  # Default to dark
-            help="Choose the base map style"
-        )
-    
-    # Create and display heatmap
-    if len(filtered_df) > 0:
-        try:
-            # Define map styles
-            map_styles = {
-                "Satellite": "open-street-map",
-                "Terrain": "stamen-terrain",
-                "Dark": "carto-darkmatter",
-                "Light": "carto-positron"
-            }
-            
-            # Weight by magnitude or just by count
-            weight_by = st.radio(
-                "Heatmap intensity based on:",
-                ["Earthquake Count", "Magnitude Weighted"],
-                horizontal=True
-            )
-            
-            # Set the z value based on selection
-            z_value = "MAGNITUDE" if weight_by == "Magnitude Weighted" else None
-            
-            # Create the map using plotly
-            fig = px.density_mapbox(
-                filtered_df,
-                lat="LATITUDE",
-                lon="LONGITUDE",
-                z=z_value,
-                radius=radius,
-                center=dict(lat=12.8797, lon=121.7740),
-                zoom=4.5,
-                hover_name="PROVINCE",
-                hover_data={
-                    "MAGNITUDE": True,
-                    "CATEGORY": True,
-                    "AREA": True,
-                    "DATE": True
-                },
-                color_continuous_scale=[
-                    [0.0, "#FFFFFF"],   # White (I)
-                    [0.1, "#A0E6FF"],   # Light Blue (II)
-                    [0.2, "#00FFFF"],   # Cyan (III)
-                    [0.3, "#00FF00"],   # Green (IV)
-                    [0.4, "#B0FF00"],   # Light Green (V)
-                    [0.5, "#FFFF00"],   # Yellow (VI)
-                    [0.6, "#FFA500"],   # Orange (VII)
-                    [0.7, "#FF6600"],   # Dark Orange (VIII)
-                    [0.8, "#FF0000"],   # Red (IX)
-                    [1.0, "#990000"]    # Dark Red (X)
-                ],
-                mapbox_style=map_styles[map_style]
-            )
-            
-            # Create a dictionary mapping categories to intensity levels for reference
-            category_to_level = {
-                "SCARCELY PERCEPTIBLE": "I",
-                "SLIGHTLY FELT": "II",
-                "WEAK": "III",
-                "MODERATELY STRONG": "IV",
-                "STRONG": "V",
-                "VERY STRONG": "VI",
-                "DESTRUCTIVE": "VII",
-                "VERY DESTRUCTIVE": "VIII",
-                "DEVASTATING": "IX",
-                "COMPLETELY DEVASTATING": "X"
-            }
-            
-            # Update colorbar to match intensity scale
-            fig.update_layout(
-                title="Earthquake Epicenter Density Heatmap",
-                height=700,
-                margin={"r":0,"t":30,"l":0,"b":0},
-                coloraxis_colorbar=dict(
-                    title="Intensity Scale",
-                    title_side="top",
-                    tickvals=[0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95],
-                    ticktext=["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"],
-                    tickmode="array",
-                    lenmode="fraction", 
-                    len=0.75,
-                    thickness=20
-                )
-            )
-            
-            # Add a legend explaining the intensity scale beneath the map
-            with st.expander("ℹ️ Intensity Scale Reference", expanded=False):
-                st.markdown("""
-                **Earthquake Intensity Scale Levels:**
-                
-                | Level | Category | Description |
-                | --- | --- | --- |
-                | I | Scarcely Perceptible | Detected only by sensitive instruments |
-                | II | Slightly Felt | Felt by sensitive people at rest |
-                | III | Weak | Felt by people indoors, like a passing truck |
-                | IV | Moderately Strong | Felt indoors like a heavy truck passing |
-                | V | Strong | Generally felt outdoors, awakens sleepers |
-                | VI | Very Strong | Slight damage, objects fall from shelves |
-                | VII | Destructive | Moderate damage to buildings |
-                | VIII | Very Destructive | Severe damage, partial collapse |
-                | IX | Devastating | General damage, buildings shifted off foundations |
-                | X | Completely Devastating | Most structures destroyed |
-                """)
-            
-            # Display the map
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Display statistics
-            with st.expander("📊 View Statistics", expanded=True):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Events", len(filtered_df))
-                    st.metric("Average Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")
-                with col2:
-                    st.metric("Maximum Magnitude", f"{filtered_df['MAGNITUDE'].max():.2f}")
-                    st.metric("Minimum Magnitude", f"{filtered_df['MAGNITUDE'].min():.2f}")
-                with col3:
-                    st.metric("Date Range", f"{start_date} to {end_date}")
-                    if "CATEGORY" in filtered_df.columns:
-                        st.metric("Categories", len(filtered_df["CATEGORY"].unique()))
-            
-        except Exception as e:
-            st.error(f"Error generating heatmap: {str(e)}")
-            st.info("Try adjusting the filters or map settings.")
-    else:
-        st.warning("No data to display with current filters.")
 
 # Add a footer with information
 st.markdown("""
