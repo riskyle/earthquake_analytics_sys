@@ -2,591 +2,588 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 import os
-import datetime
-import plotly.express as px
+from datetime import datetime
 
-# Set Page Configuration with a different title and icon
+# Set Page Configuration
 st.set_page_config(
-    page_title="Seismic Activity Analyzer", 
-    page_icon="🔍",
+    page_title="Earthquake Visualization - Philippines",
+    page_icon="🌍",
     layout="wide"
 )
 
-# Different CSS styling theme
+# Custom CSS for better styling
 st.markdown("""
 <style>
-    .page-title {
-        font-size: 2.8rem;
-        color: #3366cc;
-        text-align: center;
-        margin-bottom: 1.5rem;
-        font-family: 'Georgia', serif;
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #FF4B4B;
+        margin-bottom: 1rem;
     }
-    .section-header {
-        font-size: 1.6rem;
-        color: #3366cc;
-        margin: 1.2rem 0;
-        border-bottom: 2px solid #e0e0e0;
-        padding-bottom: 0.4rem;
+    .sub-header {
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: #888888;
+        margin-bottom: 2rem;
     }
-    .info-container {
-        background-color: rgba(51, 102, 204, 0.1);
-        border-radius: 8px;
+    .stats-card {
+        background-color: rgba(255, 75, 75, 0.1);
+        border-radius: 10px;
         padding: 15px;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
     }
-    .legend-container {
-        display: flex;
-        align-items: center;
-        margin: 8px 0;
+    .highlight-text {
+        color: #FF4B4B;
+        font-weight: 600;
     }
-    .legend-marker {
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        margin-right: 12px;
-    }
-    .stat-box {
-        background-color: #f8f8f8;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 8px 0;
-        border-left: 4px solid #3366cc;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .map-container {
+        border-radius: 0px;
+        border: none;
+        padding: 0px;
+        background-color: transparent;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# New header layout with tabs
-st.markdown("<h1 class='page-title'>🔍 Seismic Activity Analyzer - Philippines</h1>", unsafe_allow_html=True)
+# Create main layout
+header_col1, header_col2 = st.columns([3, 1])
 
-# Create tabs for different sections
-tab1, tab2 = st.tabs(["📊 Dashboard", "🌍 Interactive Map"])
+with header_col2:
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.markdown(f"<div style='text-align: right;'>Last updated: {current_time}</div>", unsafe_allow_html=True)
 
-with tab1:
-    # Introduction section with a different layout
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("""
-        <div class="info-container">
-            <h3>Welcome to the Seismic Activity Analyzer</h3>
-            <p>This advanced tool visualizes earthquake data throughout the Philippines region. 
-            Customize your analysis using various filters available in the control panel.</p>
-            <p>The visualization helps identify patterns in seismic activity, frequency, and intensity across different regions.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Add a small chart or image here
-        st.image("https://cdn-icons-png.flaticon.com/512/2377/2377860.png", width=150)
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        st.markdown(f"<p style='text-align:right;'><small>Last data refresh: {current_time}</small></p>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <h1 class='main-header'>🌍 Earthquake Mapping in the Philippines</h1>
+    <p class='sub-header'>
+        Interactive visualization of seismic activity across the Philippine archipelago
+    </p>
+    <div class='description'>
+        Explore historical earthquake data with customizable metrics, time-based filters, and geographic analysis tools. 
+        This dashboard helps identify patterns and high-risk zones through dynamic mapping and statistical visualization.
+    </div>
+    """, unsafe_allow_html=True
+)
 
-# Sidebar with a different title and organization
-with st.sidebar:
-    st.markdown("<h2 style='text-align:center; color:#3366cc'>Analysis Controls</h2>", unsafe_allow_html=True)
-    st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # Add expandable sections for better organization
-    with st.expander("ℹ️ About This Tool", expanded=False):
-        st.markdown("""
-        The Seismic Activity Analyzer provides comprehensive visualization of earthquake data.
-        Use the filters below to customize your view and analyze patterns across different regions and time periods.
-        """)
-    
-    # Data sampling controls moved outside of cached function
-    st.markdown("### 📉 Data Sampling Controls")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        sample_percent = st.slider("Sample %", 5, 100, 25, 
-                                   help="Adjust to reduce data size")
-    with col2:
-        max_points = st.number_input("Max Records", 
-                                     min_value=1000, 
-                                     max_value=50000, 
-                                     value=10000)
-
-# Load Earthquake Data with the same functionality but different variable names
+# Load Earthquake Data from Uploaded File
 @st.cache_data
-def import_seismic_data(sample_pct, max_pts):
-    csv_path = r"merged_output.csv"
+def load_data():
+    file_path = r"merged_output.csv"
 
-    if not os.path.exists(csv_path):
-        st.error(f"Data file not found at: {csv_path}. Please verify the file location.")
-        return None
+    if not os.path.exists(file_path):
+        st.error(f"File not found at path: {file_path}. Please check your file location.")
+        return None, None
 
-    seismic_df = pd.read_csv(csv_path)
-    seismic_df.columns = seismic_df.columns.str.strip().str.upper()
+    df_full = pd.read_csv(file_path)
+    df = df_full.copy()
 
-    needed_columns = {"LATITUDE", "LONGITUDE", "DEPTH (KM)", "MAGNITUDE", "TIME"}
-    if not needed_columns.issubset(seismic_df.columns):
-        st.error(f"Required columns missing: {needed_columns - set(seismic_df.columns)}")
-        return None
+    df.columns = df.columns.str.strip().str.upper()
 
-    seismic_df["LATITUDE"] = pd.to_numeric(seismic_df["LATITUDE"], errors="coerce")
-    seismic_df["LONGITUDE"] = pd.to_numeric(seismic_df["LONGITUDE"], errors="coerce")
-    seismic_df["DEPTH (KM)"] = pd.to_numeric(seismic_df["DEPTH (KM)"], errors="coerce")
-    seismic_df["MAGNITUDE"] = pd.to_numeric(seismic_df["MAGNITUDE"], errors="coerce")
-    
-    # Process date and time fields
-    if "DATE & TIME" in seismic_df.columns:
-        seismic_df["DISPLAY_TIME"] = seismic_df["DATE & TIME"]
-        seismic_df["TIME"] = pd.to_datetime(seismic_df["DATE & TIME"], errors="coerce")
-    else:
-        if "DATE" in seismic_df.columns and "TIME" in seismic_df.columns:
-            seismic_df["DISPLAY_TIME"] = seismic_df["DATE"] + " " + seismic_df["TIME"]
-            seismic_df["TIME"] = pd.to_datetime(seismic_df["DATE"] + " " + seismic_df["TIME"], errors="coerce")
-        else:
-            seismic_df["TIME"] = pd.to_datetime(seismic_df["TIME"], errors="coerce")
-            seismic_df["DISPLAY_TIME"] = seismic_df["TIME"].dt.strftime("%d %B %Y - %I:%M %p")
+    required_columns = {"LATITUDE", "LONGITUDE", "DEPTH (KM)", "MAGNITUDE", "TIME"}
+    if not required_columns.issubset(df.columns):
+        st.error(f"Missing required columns: {required_columns - set(df.columns)}")
+        return None, None
 
-    # Convert depth to negative for visual representation
-    seismic_df["DEPTH (KM)"] = -seismic_df["DEPTH (KM)"]
-    seismic_df = seismic_df.dropna(subset=["LATITUDE", "LONGITUDE", "DEPTH (KM)", "MAGNITUDE", "TIME"])
-    
-    # Track total count before sampling
-    total_count = len(seismic_df)
-    
-    # Apply sampling logic but using the parameters passed in
-    if sample_pct < 100:
-        seismic_df = seismic_df.sample(frac=sample_pct/100, random_state=42)
-    
-    if len(seismic_df) > max_pts:
-        seismic_df = seismic_df.sample(n=max_pts, random_state=42)
-    
-    # Return both the dataframe and the total count
-    return seismic_df, total_count
+    df["LATITUDE"] = pd.to_numeric(df["LATITUDE"], errors="coerce")
+    df["LONGITUDE"] = pd.to_numeric(df["LONGITUDE"], errors="coerce")
+    df["DEPTH (KM)"] = pd.to_numeric(df["DEPTH (KM)"], errors="coerce")
+    df["MAGNITUDE"] = pd.to_numeric(df["MAGNITUDE"], errors="coerce")
+    df["TIME"] = pd.to_datetime(df["TIME"], errors="coerce")
 
-# Load data with a loading spinner with different text
-with st.spinner('Importing seismic data, please wait...'):
-    seismic_data, total_count = import_seismic_data(sample_percent, max_points)
+    df["DEPTH (KM)"] = -df["DEPTH (KM)"]
+    df = df.dropna(subset=["LATITUDE", "LONGITUDE", "DEPTH (KM)", "MAGNITUDE", "TIME"])
+
+    return df, df_full
+
+# Load data
+with st.spinner("Loading earthquake data..."):
+    df, df_full = load_data()
     
-if seismic_data is None:
+if df is None or df_full is None:
     st.stop()
 
-# Show sampling statistics in sidebar
-with st.sidebar:
-    display_count = len(seismic_data)
-    percent_shown = (display_count / total_count) * 100
+# Add data sampling controls
+st.sidebar.markdown("""
+<div style='margin-top: 20px; padding: 10px; background-color: rgba(255, 255, 0, 0.1); border-radius: 5px;'>
+    <h4 style='color: #FF9800;'>⚠️ Performance Settings</h4>
+    <p style='font-size: 0.8em; color: #888888;'>Adjust these settings if you experience performance issues</p>
+</div>
+""", unsafe_allow_html=True)
+
+use_data_sampling = st.sidebar.checkbox("Enable data sampling", value=True, 
+                                       help="Reduces data size to improve performance")
+
+if use_data_sampling:
+    max_points = st.sidebar.slider("Maximum data points", 
+                                 min_value=100, 
+                                 max_value=100000, 
+                                 value=2000, 
+                                 step=100,
+                                 help="Lower values improve performance")
     
-    st.markdown(f"""
-    <div style='background-color:rgba(51,102,204,0.1); padding:10px; border-radius:5px; margin:10px 0;'>
-        <b>Data Overview:</b> Showing {display_count:,} of {total_count:,} records ({percent_shown:.1f}%)
-    </div>
-    """, unsafe_allow_html=True)
+    # Apply sampling to the main dataframe if needed
+    if len(df) > max_points:
+        # Stratified sampling by province to maintain representativeness
+        sampled_df = pd.DataFrame()
+        provinces = df["PROVINCE"].dropna().unique()
+        
+        # Calculate points per province
+        points_per_province = max(5, int(max_points / len(provinces)))
+        
+        for province in provinces:
+            province_data = df[df["PROVINCE"] == province]
+            if len(province_data) > points_per_province:
+                # Sample from each province
+                province_sample = province_data.sample(n=points_per_province, random_state=42)
+                sampled_df = pd.concat([sampled_df, province_sample])
+            else:
+                # If province has fewer points than allocated, take all
+                sampled_df = pd.concat([sampled_df, province_data])
+        
+        # If we still have too many points, take a random sample
+        if len(sampled_df) > max_points:
+            sampled_df = sampled_df.sample(n=max_points, random_state=42)
+            
+        # Use the sampled dataframe
+        df = sampled_df
+else:
+    # Warn if data is very large
+    if len(df) > 10000:
+        pass
 
-# Prioritize significant events
-seismic_data = seismic_data.sort_values("MAGNITUDE", ascending=False).reset_index(drop=True)
+# ✅ Sort Data by Time (Oldest to Newest)
+df = df.sort_values("TIME")
 
-# Dashboard metrics in a different layout
-with tab1:
-    # Key metrics in a 2x2 grid instead of a single row
-    col1, col2 = st.columns(2)
-    col3, col4 = st.columns(2)
-    
-    event_count = len(seismic_data)
-    avg_mag = seismic_data["MAGNITUDE"].mean()
-    max_mag = seismic_data["MAGNITUDE"].max()
-    date_span = f"{seismic_data['TIME'].min().date()} to {seismic_data['TIME'].max().date()}"
-    
-    with col1:
-        st.metric("Total Seismic Events", f"{event_count:,}")
-    with col2:
-        st.metric("Average Magnitude", f"{avg_mag:.2f}")
-    with col3:
-        st.metric("Peak Magnitude", f"{max_mag:.2f}")
-    with col4:
-        st.metric("Time Range", date_span)
-    
-# Process data for visualization with different variable names
-seismic_data = seismic_data.sort_values("TIME")
+# ✅ Create Next Event Connections
+df["NEXT_LAT"] = df["LATITUDE"].shift(-1)
+df["NEXT_LON"] = df["LONGITUDE"].shift(-1)
+df["NEXT_TIME"] = df["TIME"].shift(-1)
 
-# Create temporal connections
-seismic_data["NEXT_LATITUDE"] = seismic_data["LATITUDE"].shift(-1)
-seismic_data["NEXT_LONGITUDE"] = seismic_data["LONGITUDE"].shift(-1)
-seismic_data["NEXT_TIME"] = seismic_data["TIME"].shift(-1)
-seismic_data["HOURS_BETWEEN"] = (seismic_data["NEXT_TIME"] - seismic_data["TIME"]).dt.total_seconds() / 3600
+# ✅ Compute Time Difference (Hours) Between Earthquakes
+df["TIME_DIFF_HOURS"] = (df["NEXT_TIME"] - df["TIME"]).dt.total_seconds() / 3600  # Convert to hours
 
-# Remove last row with no next event
-seismic_data = seismic_data.dropna(subset=["NEXT_LATITUDE", "NEXT_LONGITUDE", "NEXT_TIME", "HOURS_BETWEEN"])
+# ✅ Remove Last Row (Since It Has No Next Earthquake)
+df = df.dropna(subset=["NEXT_LAT", "NEXT_LON", "NEXT_TIME", "TIME_DIFF_HOURS"])
 
-# Color mapping function with a different approach
-def time_color_mapping(hours):
-    if hours < 2:  # Changed time threshold
-        return [50, 150, 255, 200]  # Blue (changed color)
-    elif hours < 24:  # Changed time threshold
-        return [50, 180, 50, 200]  # Green (changed color)
+# 🎨 Define Arc Colors Based on Time Difference
+def get_color(interval):
+    if interval < 1:
+        return [255, 0, 0, 200]  # Green (Less than 1 hour)
+
+df["COLOR"] = df["TIME_DIFF_HOURS"].apply(get_color)
+
+# Add this after the get_color function
+def get_magnitude_color(magnitude):
+    # Color scheme based on magnitude ranges
+    if magnitude < 1:
+        return [255, 255, 255, 180]  # White for barely perceptible
+    elif magnitude < 2:
+        return [200, 200, 200, 180]  # Light gray for scarcely perceptible
+    elif magnitude < 3:
+        return [173, 216, 230, 180]  # Light blue for weak
+    elif magnitude < 4:
+        return [0, 255, 255, 180]  # Cyan for moderately strong
+    elif magnitude < 5:
+        return [0, 255, 0, 180]  # Green for strong
+    elif magnitude < 6:
+        return [255, 255, 0, 180]  # Yellow for very strong
+    elif magnitude < 7:
+        return [255, 165, 0, 180]  # Orange for destructive
+    elif magnitude < 8:
+        return [255, 69, 0, 180]  # Red-Orange for very destructive
+    elif magnitude < 9:
+        return [255, 0, 0, 180]  # Red for devastating
     else:
-        return [200, 100, 50, 200]  # Orange (changed color)
+        return [139, 0, 0, 180]  # Dark red for completely devastating
 
-seismic_data["LINE_COLOR"] = seismic_data["HOURS_BETWEEN"].apply(time_color_mapping)
+# 🎛 Sidebar Filters
+st.sidebar.markdown("<div style='background-color: rgba(255, 75, 75, 0.1); padding: 10px; border-radius: 5px;'><h3>📊 Data Filters</h3></div>", unsafe_allow_html=True)
 
-# Sidebar filters with different organization
-with st.sidebar:
-    st.markdown("### 📊 Data Filters")
-    
-    # Magnitude filter with different design
-    st.markdown("#### Magnitude Range")
-    mag_min, mag_max = seismic_data["MAGNITUDE"].min(), seismic_data["MAGNITUDE"].max()
-    mag_range = st.slider("", 
-                         mag_min, 
-                         mag_max, 
-                         (mag_min, mag_max),
-                         help="Filter events by magnitude")
-    
-    # Region filter with a different approach
-    st.markdown("#### Region Selection")
-    filter_mode = st.radio("Selection Mode:", ["All Regions", "Select Specific Regions"])
-    
-    if filter_mode == "All Regions":
-        selected_regions = sorted(seismic_data["PROVINCE"].dropna().unique().tolist())
-    else:
-        # Show top regions by event count with different defaults
-        top_regions = seismic_data["PROVINCE"].value_counts().nlargest(3).index.tolist()
-        selected_regions = st.multiselect(
-            "Select Regions to Show:",
-            sorted(seismic_data["PROVINCE"].dropna().unique().tolist()),
-            default=top_regions
-        )
-    
-    # Date filter with a different layout
-    st.markdown("#### Time Period")
-    date_min, date_max = seismic_data["TIME"].min().date(), seismic_data["TIME"].max().date()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("From", date_min, min_value=date_min, max_value=date_max)
-    with col2:
-        end_date = st.date_input("To", date_max, min_value=date_min, max_value=date_max)
+# Magnitude Filter
+st.sidebar.subheader("🔍 Filter by MAGNITUDE")
+min_mag, max_mag = df["MAGNITUDE"].min(), df["MAGNITUDE"].max()
+selected_mag = st.sidebar.slider("MAGNITUDE Range", min_mag, max_mag, (min_mag, max_mag))
 
-# Apply filters to create filtered dataset
-filtered_data = seismic_data[
-    (seismic_data["MAGNITUDE"] >= mag_range[0]) & 
-    (seismic_data["MAGNITUDE"] <= mag_range[1]) &
-    (seismic_data["PROVINCE"].isin(selected_regions)) &
-    (seismic_data["TIME"].dt.date >= start_date) & 
-    (seismic_data["TIME"].dt.date <= end_date)
+# Province Filter
+st.sidebar.markdown("""
+<div style='margin-top: 20px; padding: 10px; border-left: 3px solid #FF4B4B; background-color: rgba(255, 75, 75, 0.05);'>
+    <h3 style='color: #FF4B4B;'>📍 Province Filter</h3>
+</div>
+""", unsafe_allow_html=True)
+
+# Add "Select All" option
+select_all = st.sidebar.checkbox("Select All Provinces", True)
+
+if select_all:
+    selected_provinces = sorted(df["PROVINCE"].dropna().unique().tolist())
+else:
+    # Multi-select for provinces with default top 5
+    top_5_provinces = df["PROVINCE"].value_counts().nlargest(5).index.tolist()
+    selected_provinces = st.sidebar.multiselect(
+        "Select Provinces",
+        sorted(df["PROVINCE"].dropna().unique().tolist()),
+        default=top_5_provinces,
+        help="You can select multiple provinces to compare"
+    )
+
+# Add province count indicator
+st.sidebar.markdown(f"""
+<div style='margin-top: 10px; padding: 5px; background-color: rgba(255, 75, 75, 0.1); border-radius: 5px;'>
+    <p style='margin: 0; color: #FF4B4B;'>Selected: {len(selected_provinces)} provinces</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ✅ Filter Data Based on Magnitude and Province
+filtered_df = df[
+    (df["MAGNITUDE"] >= selected_mag[0]) & 
+    (df["MAGNITUDE"] <= selected_mag[1]) &
+    (df["PROVINCE"].isin(selected_provinces))
 ]
 
-# Show region statistics with different design
-with st.sidebar:
-    st.markdown("### 📋 Region Statistics")
+# Apply magnitude colors to filtered data
+filtered_df["COLOR"] = filtered_df["MAGNITUDE"].apply(get_magnitude_color)
+
+# Protect against too large datasets in the map visualization
+map_df = filtered_df
+
+# ✅ Prepare Sequential Data for Each Province Separately
+def prepare_sequential_data(province_df):
+    # Debug info
+    if len(province_df) <= 1:
+        return pd.DataFrame()  # Return empty dataframe if not enough points
+        
+    # Sort by time within the province
+    province_df = province_df.sort_values("TIME").copy()
     
-    # Create a container for better styling
-    stats_container = st.container()
+    # Create connections only within the same province
+    province_df["NEXT_LAT"] = province_df["LATITUDE"].shift(-1)
+    province_df["NEXT_LON"] = province_df["LONGITUDE"].shift(-1)
+    province_df["NEXT_TIME"] = province_df["TIME"].shift(-1)
+    province_df["NEXT_MAGNITUDE"] = province_df["MAGNITUDE"].shift(-1)
+    province_df["NEXT_PROVINCE"] = province_df["PROVINCE"].shift(-1)
+    province_df["NEXT_AREA"] = province_df["AREA"].shift(-1)  # Add next area
     
-    with stats_container:
-        # Add a search box to filter regions (optional)
-        if len(selected_regions) > 5:
-            search_term = st.text_input("🔍 Filter regions", placeholder="Type to search...")
-            display_regions = [r for r in selected_regions if search_term.lower() in r.lower()] if search_term else selected_regions
+    # Calculate time differences (just for information)
+    province_df["TIME_DIFF_HOURS"] = (
+        province_df["NEXT_TIME"] - province_df["TIME"]
+    ).dt.total_seconds() / 3600
+    
+    # Remove last row of each province (no next event)
+    # Note: We're not filtering based on time difference anymore
+    province_df = province_df.dropna(subset=["NEXT_LAT", "NEXT_LON", "NEXT_TIME"])
+    
+    # Apply red colors for sequential arcs with intensity based on magnitude
+    def get_arc_color(magnitude):
+        intensity = min(255, int(magnitude * 30))
+        return [255, intensity, intensity, 200]  # Red with varying intensity
+    
+    # Apply red-based colors for source and target
+    province_df["SOURCE_COLOR"] = province_df["MAGNITUDE"].apply(get_arc_color)
+    province_df["TARGET_COLOR"] = province_df["NEXT_MAGNITUDE"].apply(get_arc_color)
+    
+    # Ensure TIME column is preserved
+    if "TIME" not in province_df.columns:
+        province_df["TIME"] = province_df.index
+    
+    return province_df
+
+# Modified approach to handle case sensitivity issues
+# Create a case-insensitive mapping of provinces
+province_map = {p.lower(): p for p in df["PROVINCE"].dropna().unique()}
+
+# Process each province separately and combine
+sequential_df = pd.DataFrame()  # Empty DataFrame to store results
+processed_provinces = []
+
+# Track provinces with too few events
+provinces_with_few_events = []
+
+# Only process provinces that are selected in the filter
+for province in selected_provinces:
+    # Adjust for case sensitivity if needed
+    if province.lower() in province_map:
+        actual_province = province_map[province.lower()]
+        province_data = filtered_df[filtered_df["PROVINCE"].str.lower() == province.lower()]
+    else:
+        # If exact match not found, try partial match
+        matching_provinces = [p for p in df["PROVINCE"].dropna().unique() 
+                             if any(part.lower() in p.lower() for part in province.split())]
+        if matching_provinces:
+            province_data = filtered_df[filtered_df["PROVINCE"].isin(matching_provinces)]
         else:
-            display_regions = selected_regions
+            continue  # Skip if no match found
+    
+    # Skip if there are not enough events
+    if len(province_data) < 2:
+        provinces_with_few_events.append((province, len(province_data)))
+        continue
         
-        # Show summary of all regions
-        total_events = sum(len(filtered_data[filtered_data["PROVINCE"] == region]) for region in selected_regions)
-        avg_all_mag = filtered_data["MAGNITUDE"].mean() if not filtered_data.empty else 0
-        max_all_mag = filtered_data["MAGNITUDE"].max() if not filtered_data.empty else 0
-        
-        st.markdown(f"""
-        <div style='background-color:rgba(51,102,204,0.1); padding:10px; border-radius:5px; margin:10px 0;'>
-            <b>Summary</b>: {len(selected_regions)} regions | {total_events:,} events<br>
-            Avg Magnitude: {avg_all_mag:.2f} | Max: {max_all_mag:.2f}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Create better looking statistics cards for each region
-        for i, region in enumerate(display_regions):
-            region_data = filtered_data[filtered_data["PROVINCE"] == region]
-            if not region_data.empty:
-                event_count = len(region_data)
-                avg_mag = region_data["MAGNITUDE"].mean()
-                max_mag = region_data["MAGNITUDE"].max()
-                
-                # Calculate a color gradient based on event count or magnitude
-                intensity = min(1.0, event_count / (total_events * 0.5 + 1)) if total_events > 0 else 0.1
-                red = int(50 + intensity * 150)
-                green = int(100 + intensity * 50) 
-                blue = int(200 - intensity * 50)
-                
-                # Create a card with colored border based on intensity
-                st.markdown(f"""
-                <div style='background-color: white; 
-                           padding: 12px; 
-                           border-radius: 6px; 
-                           margin: 8px 0;
-                           border-left: 5px solid rgb({red},{green},{blue});
-                           box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span style='font-weight: bold; color: #3366cc;'>{region}</span>
-                        <span style='color: #666; font-size: 0.9em;'>{event_count:,} events</span>
-                    </div>
-                    <div style='display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.9em;'>
-                        <span style='color: #666;'>Avg: {avg_mag:.2f}</span>
-                        <span style='color: #666;'>Max: {max_mag:.2f}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Show message if no regions match search
-        if not display_regions:
-            st.info("No regions match your search criteria.")
-            
-        # Add a note about the colors if there are many regions
-        if len(selected_regions) > 3:
-            st.caption("Color intensity indicates relative seismic activity level")
+    processed_data = prepare_sequential_data(province_data)
+    if not processed_data.empty:
+        sequential_df = pd.concat([sequential_df, processed_data])
+        processed_provinces.append(actual_province)
 
-# Process sequential data by region with a different implementation
-def create_sequential_connections(region_data):
-    temp_df = region_data.sort_values("TIME").copy()
-    
-    # Create connections within same region
-    temp_df["NEXT_LATITUDE"] = temp_df["LATITUDE"].shift(-1)
-    temp_df["NEXT_LONGITUDE"] = temp_df["LONGITUDE"].shift(-1)
-    temp_df["NEXT_TIME"] = temp_df["TIME"].shift(-1)
-    
-    # Time differences
-    temp_df["HOURS_BETWEEN"] = (temp_df["NEXT_TIME"] - temp_df["TIME"]).dt.total_seconds() / 3600
-    
-    # Remove incomplete rows and color
-    temp_df = temp_df.dropna(subset=["NEXT_LATITUDE", "NEXT_LONGITUDE", "HOURS_BETWEEN"])
-    temp_df["LINE_COLOR"] = temp_df["HOURS_BETWEEN"].apply(time_color_mapping)
-    
-    return temp_df
+# Add a direct emergency override option
+st.sidebar.markdown("""
+<div style='margin-top: 10px; padding: 10px; background-color: rgba(255, 0, 0, 0.1); border-radius: 5px;'>
+    <h4 style='color: #FF0000;'>🚨 Connection Troubleshooting</h4>
+</div>
+""", unsafe_allow_html=True)
 
-# Process each region
-sequential_data = pd.DataFrame()
-for region in selected_regions:
-    region_subset = filtered_data[filtered_data["PROVINCE"] == region]
-    processed = create_sequential_connections(region_subset)
-    sequential_data = pd.concat([sequential_data, processed])
+force_connections = st.sidebar.checkbox("Force connections (emergency override)", value=False, 
+                                       help="Use this if no connections are showing despite having data")
 
-# Create map layers with different configurations
-with tab2:
-    st.markdown("<h3 class='section-header'>Seismic Activity Map</h3>", unsafe_allow_html=True)
-    
-    # Show filtered count
-    st.markdown(f"""
-    <div style='margin:10px 0; background-color:rgba(51,102,204,0.1); padding:8px; border-radius:5px; display:inline-block;'>
-        Currently displaying <b>{len(filtered_data):,}</b> seismic events
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Layer configuration with different options
-    map_layers = {
-        "Events (Circle)": pdk.Layer(
-            "ScatterplotLayer",
-            data=filtered_data,
-            get_position=["LONGITUDE", "LATITUDE"],
-            get_color=[220, 100, 100, 180],  # Changed color
-            get_radius="MAGNITUDE * 12000",  # Changed scaling
-            pickable=True,
-            opacity=0.7,
-            auto_highlight=True,
-            highlight_color=[250, 250, 50, 180],
-        ),
-        "Density Heatmap": pdk.Layer(
-            "HeatmapLayer",  # Changed from HexagonLayer
-            data=filtered_data,
-            get_position=["LONGITUDE", "LATITUDE"],
-            get_weight="MAGNITUDE",
-            aggregation="SUM",
-            radius=35000,  # Changed radius
-            opacity=0.7,
-            pickable=True,
-        ),
-        "Magnitude Labels": pdk.Layer(
-            "TextLayer",
-            data=filtered_data,
-            get_position=["LONGITUDE", "LATITUDE"],
-            get_text="MAGNITUDE",
-            get_size=16,
-            get_color=[255, 255, 255],
-            get_angle=0,
-            get_alignment_baseline="'bottom'",
-            pickable=False,
-        ),
-        "Event Sequence": pdk.Layer(
-            "ArcLayer",
-            data=sequential_data,
-            get_source_position=["LONGITUDE", "LATITUDE"],
-            get_target_position=["NEXT_LONGITUDE", "NEXT_LATITUDE"],
-            get_source_color="LINE_COLOR",
-            get_target_color="LINE_COLOR",
-            auto_highlight=True,
-            get_width="MAGNITUDE * 1.5",  # Changed scaling
-            width_min_pixels=1.5,  # Changed
-            width_max_pixels=15,  # Changed
-            pickable=True,
-        ),
-    }
-    
-    # Layer selection with a different UI
-    col1, col2 = st.columns(2)
-    active_layers = []
-    
+# Force creation of simple connections if needed
+if force_connections and not filtered_df.empty:
+    # Create a simplified version with direct province-based connections
+    if len(filtered_df) >= 2:
+        # Sort all filtered data by time
+        temp_df = filtered_df.sort_values("TIME").copy()
+        
+        # Create connections
+        temp_df["NEXT_LAT"] = temp_df["LATITUDE"].shift(-1)
+        temp_df["NEXT_LON"] = temp_df["LONGITUDE"].shift(-1)
+        temp_df["NEXT_TIME"] = temp_df["TIME"].shift(-1)
+        temp_df["NEXT_MAGNITUDE"] = temp_df["MAGNITUDE"].shift(-1)
+        temp_df["NEXT_PROVINCE"] = temp_df["PROVINCE"].shift(-1)
+        temp_df["NEXT_AREA"] = temp_df["AREA"].shift(-1)
+        
+        # Calculate time differences
+        temp_df["TIME_DIFF_HOURS"] = (temp_df["NEXT_TIME"] - temp_df["TIME"]).dt.total_seconds() / 3600
+        temp_df["TIME_DIFF_HOURS_DISPLAY"] = temp_df["TIME_DIFF_HOURS"].round(1)
+        
+        # Remove last row (no next event)
+        temp_df = temp_df.dropna(subset=["NEXT_LAT", "NEXT_LON", "NEXT_TIME", "TIME_DIFF_HOURS"])
+        
+        # Add red color for all connections
+        temp_df["SOURCE_COLOR"] = [[255, 0, 0, 200] for _ in range(len(temp_df))]  # Bright red for source
+        temp_df["TARGET_COLOR"] = [[255, 0, 0, 200] for _ in range(len(temp_df))]  # Bright red for target
+        
+        # Use this as our sequential data
+        sequential_df = temp_df.copy()
+    else:
+        st.sidebar.error("Not enough data points to create connections.")
+
+# Convert TIME and NEXT_TIME to string for tooltip display
+if not sequential_df.empty:
+    sequential_df["TIME_STR"] = sequential_df["TIME"].dt.strftime("%Y-%m-%d %H:%M")
+    sequential_df["NEXT_TIME_STR"] = sequential_df["NEXT_TIME"].dt.strftime("%Y-%m-%d %H:%M")
+
+# Directly modify the Sequential ArcLayer
+layer_options = {
+    "Scatterplot (Earthquakes)": pdk.Layer(
+        "ScatterplotLayer",
+        data=map_df,
+        get_position=["LONGITUDE", "LATITUDE"],
+        get_color="COLOR",  # Use the magnitude-based color
+        get_radius="MAGNITUDE * 10000",
+        pickable=True,
+        opacity=0.8,
+        stroked=True,
+        filled=True,
+        line_width_min_pixels=1,
+        radius_min_pixels=3,
+        radius_max_pixels=30,
+        get_line_color=[255, 255, 255],
+    ),
+    "3D Bars": pdk.Layer(
+        "ColumnLayer",
+        data=map_df,
+        get_position=["LONGITUDE", "LATITUDE"],
+        get_elevation="MAGNITUDE * 1000",
+        elevation_scale=20,
+        radius=3000,
+        get_fill_color="COLOR",  # Use the magnitude-based color
+        pickable=True,
+        auto_highlight=True,
+        extruded=True,
+        coverage=1,
+        get_line_color=[255, 255, 255],
+        line_width_min_pixels=1,
+        line_width_max_pixels=3,
+    ),
+    "Heat Map": pdk.Layer(
+        "HeatmapLayer",
+        data=map_df,
+        get_position=["LONGITUDE", "LATITUDE"],
+        get_weight="MAGNITUDE",
+        aggregation="MEAN",
+        pickable=False,
+        opacity=0.8,
+        threshold=0.1,
+        radius_pixels=50,
+    ),
+    "Text Labels": pdk.Layer(
+        "TextLayer",
+        data=map_df.sample(n=min(200, len(map_df)), random_state=42),  # Limit text labels
+        get_position=["LONGITUDE", "LATITUDE"],
+        get_text="MAGNITUDE",
+        get_size=16,
+        get_color=[255, 255, 255],
+        get_alignment_baseline="'bottom'",
+        get_angle=0,
+        text_background=True,
+        get_text_background_color=[0, 0, 0, 200],
+        get_pixel_offset=[0, -10],
+        font_family="'Roboto', 'Arial', sans-serif",
+        font_weight="bold",
+        pickable=True,
+        text_border_width=2,
+        text_border_color=[0, 0, 0, 200],
+        collision_filter=True,
+        get_text_anchor="'middle'",
+        size_min_pixels=10,
+        size_max_pixels=20,
+    ),
+    "Sequential ArcLayer (Time-Based)": pdk.Layer(
+        "ArcLayer",
+        data=sequential_df if not sequential_df.empty else map_df,  # Fallback to any data
+        get_source_position=["LONGITUDE", "LATITUDE"],
+        get_target_position=["NEXT_LON", "NEXT_LAT"] if not sequential_df.empty else ["LONGITUDE", "LATITUDE"],  # Fallback
+        get_source_color="COLOR",  # Use the same magnitude-based color as points
+        get_target_color="COLOR",  # Use the same magnitude-based color as points
+        auto_highlight=True,
+        get_width="MAGNITUDE * 1",
+        width_min_pixels=1,
+        width_max_pixels=10,
+        pickable=True,
+        get_height=0.7,
+        highlight_color=[255, 255, 255, 255],
+    )
+}
+
+# Add a custom layer selector with descriptions
+st.sidebar.markdown("""
+<div style='margin-top: 10px; padding: 5px;'>
+    <h4 style='color: #FF4B4B;'>⚙️ Layer Configuration</h4>
+</div>
+""", unsafe_allow_html=True)
+
+# More informative layer selection
+layer_descriptions = {
+    "Scatterplot (Earthquakes)": "Shows earthquakes as points with size based on magnitude",
+    "3D Bars": "Visualizes earthquakes as 3D columns with height based on magnitude",
+    "Heat Map": "Displays earthquake density with intensity based on magnitude",
+    "Text Labels": "Adds magnitude labels to earthquake points",
+    "Sequential ArcLayer (Time-Based)": "Connects sequential earthquakes with arcs"
+}
+
+# Add a map style selector
+st.sidebar.markdown("### 🎨 Map Style")
+map_style = st.sidebar.selectbox(
+    "Select base map style",
+    options=[
+        "mapbox://styles/mapbox/dark-v10",
+        "mapbox://styles/mapbox/light-v10",
+        "mapbox://styles/mapbox/satellite-v9",
+        "mapbox://styles/mapbox/satellite-streets-v11",
+        "mapbox://styles/mapbox/navigation-night-v1"
+    ],
+    index=3
+)
+
+# Add view controls
+st.sidebar.markdown("### 🔍 Map View")
+initial_pitch = st.sidebar.slider("3D Pitch", 0, 60, 40)
+initial_zoom = st.sidebar.slider("Zoom Level", 3, 10, 5)
+
+# Layer selection code
+selected_layers = []
+for name, layer in layer_options.items():
+    col1, col2 = st.sidebar.columns([1, 3])
     with col1:
-        for i, (name, layer) in enumerate(list(map_layers.items())[:2]):
-            if st.checkbox(name, True, key=f"layer_{i}"):
-                active_layers.append(layer)
-    
+        is_selected = st.checkbox("", value=True, key=f"layer_{name}")
     with col2:
-        for i, (name, layer) in enumerate(list(map_layers.items())[2:], start=2):
-            if st.checkbox(name, True, key=f"layer_{i}"):
-                active_layers.append(layer)
-    
-    # Map view settings with different defaults and options
-    map_view = pdk.ViewState(
-        latitude=12.8797,  
-        longitude=121.7740,
-        zoom=5.5,    
-        pitch=35,  # Changed
-        bearing=15  # Changed
+        st.markdown(f"""
+        <div style='margin-bottom: 5px;'>
+            <span style='color: #FF4B4B; font-weight: 500;'>{name}</span>
+            <div style='font-size: 0.8em; color: #AAAAAA;'>{layer_descriptions[name]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if is_selected:
+        selected_layers.append(layer)
+
+# Add alternative view of connections with LineLayer
+if not sequential_df.empty and "Sequential Lines" not in layer_options:
+    layer_options["Sequential Lines"] = pdk.Layer(
+        "LineLayer",
+        data=sequential_df,
+        get_source_position=["LONGITUDE", "LATITUDE"],
+        get_target_position=["NEXT_LON", "NEXT_LAT"],
+        get_color=[255, 0, 0, 200],  # Red lines
+        get_width="MAGNITUDE * 5",
+        width_min_pixels=4,
+        width_max_pixels=30,
+        pickable=True,
     )
     
-    # Map configuration with more compact UI
-    st.markdown("<h4 style='color:#3366cc; margin-top:10px; margin-bottom:5px;'>Map View Settings</h4>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        style = st.selectbox(
-            "Map Base Style",
-            options=[
-                "mapbox://styles/mapbox/satellite-streets-v11",  # Changed
-                "mapbox://styles/mapbox/dark-v10",
-                "mapbox://styles/mapbox/light-v10",
-                "mapbox://styles/mapbox/outdoors-v11",
-            ],
-            index=0
-        )
-    
-    with col2:
-        angle = st.slider("View Angle", 0, 60, 35)  # Changed default
-    
-    with col3:
-        map_zoom = st.slider("Zoom Level", 3, 11, 5)  # Changed range
-    
-    # Add advanced view controls
-    st.markdown("<h4 style='color:#3366cc; margin-top:10px; margin-bottom:5px;'>Advanced View Controls</h4>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        bearing = st.slider("Map Rotation (degrees)", 0, 359, 15, 5, 
-                           help="Rotate the map to view from different directions")
-    
-    with col2:
-        if st.button("Reset View", use_container_width=True):
-            angle = 35
-            bearing = 15
-            map_zoom = 5
-            map_view.latitude = 12.8797
-            map_view.longitude = 121.7740
-    
-    # Add position controls
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        view_lat = st.number_input("Latitude", -90.0, 90.0, 12.8797, 0.1, format="%.4f",
-                                  help="Central latitude position")
-    
-    with col2:
-        view_lon = st.number_input("Longitude", -180.0, 180.0, 121.7740, 0.1, format="%.4f",
-                                  help="Central longitude position")
-    
-    # Set center position from input
-    if st.button("Center View", use_container_width=True):
-        map_view.latitude = view_lat
-        map_view.longitude = view_lon
-    
-    # Update view settings
-    map_view.pitch = angle
-    map_view.zoom = map_zoom
-    map_view.bearing = bearing
-    
-    # Create and display map
-    if active_layers:
-        map_deck = pdk.Deck(
-            map_style=style,
-            initial_view_state=map_view,
-            layers=active_layers,
-            tooltip={
-                "html": """
-                <div style="background-color: rgba(42, 42, 42, 0.95); color: white; 
-                     padding: 10px; border-radius: 5px; font-family: Arial; width: 280px;">
-                    <div style="font-weight: bold; font-size: 14px;">{PROVINCE}</div>
-                    <div style="margin: 5px 0;">
-                        <span style="color: #aaa;">Magnitude:</span> {MAGNITUDE}
-                    </div>
-                    <div style="margin: 5px 0;">
-                        <span style="color: #aaa;">Depth:</span> {DEPTH (KM)} km
-                    </div>
-                    <div style="margin: 5px 0;">
-                        <span style="color: #aaa;">When:</span> {DISPLAY_TIME}
-                    </div>
-                </div>
-                """
-            }
-        )
-        
-        st.pydeck_chart(map_deck, use_container_width=True)
-        st.caption("Hover over events to see details. Use the controls above to change the viewing angle and position.")
-    else:
-        st.error("Please select at least one map layer to display.")
+    layer_descriptions["Sequential Lines"] = "Connects sequential earthquakes with direct lines (alternative to arcs)"
 
-# Legend and information with different design
-with tab2:
-    st.markdown("<h3 class='section-header'>Map Legend & Information</h3>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div style='background-color:#121212; padding:20px; border-radius:8px; color:white; border:1px solid rgba(255,255,255,0.1);'>
-            <h4 style='color:#4d94ff; font-size:1.2rem; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:8px; margin-bottom:12px;'>Time Between Events (Connection Lines)</h4>
-            <div class='legend-container'>
-                <div class='legend-marker' style='background-color: rgba(50, 150, 255, 0.8); border:1px solid white;'></div>
-                <div><strong>Blue Lines:</strong> Less than 2 hours between events</div>
+# 🌍 Define Map View with updated controls
+view_state = pdk.ViewState(
+    latitude=12.8797,
+    longitude=121.7740,
+    zoom=initial_zoom,
+    pitch=initial_pitch,
+    bearing=0,
+    height=600
+)
+
+# Main map container
+st.markdown("### Interactive Earthquake Map")
+
+# Add information about data density
+if not filtered_df.empty:
+    pass
+
+# Ensure TIME_DIFF_HOURS_DISPLAY exists in filtered_df and map_df for tooltip compatibility
+if "TIME_DIFF_HOURS_DISPLAY" not in filtered_df.columns:
+    filtered_df["TIME_DIFF_HOURS_DISPLAY"] = "N/A"
+else:
+    filtered_df["TIME_DIFF_HOURS_DISPLAY"] = filtered_df["TIME_DIFF_HOURS_DISPLAY"].replace('', 'N/A')
+if "TIME_DIFF_HOURS_DISPLAY" not in map_df.columns:
+    map_df["TIME_DIFF_HOURS_DISPLAY"] = "N/A"
+else:
+    map_df["TIME_DIFF_HOURS_DISPLAY"] = map_df["TIME_DIFF_HOURS_DISPLAY"].replace('', 'N/A')
+
+# 🗺️ Render Map with enhanced tooltip
+if selected_layers:
+    st.pydeck_chart(pdk.Deck(
+        map_style=map_style,
+        initial_view_state=view_state,
+        layers=selected_layers,
+        tooltip={
+            "html": """
+            <div style=\"background-color: rgba(0, 0, 0, 0.8); color: white; border-radius: 4px; padding: 6px; font-family: 'Arial', sans-serif; font-size: 12px; max-width: 200px;\">
+                <div style=\"color: #FF4B4B; font-weight: bold; margin-bottom: 3px;\">{AREA}</div>
+                <div style=\"display: flex; justify-content: space-between; margin-bottom: 2px;\">
+                    <span>Mag:</span>
+                    <span>{MAGNITUDE}</span>
+                </div>
+                <div style=\"display: flex; justify-content: space-between; margin-bottom: 2px;\">
+                    <span>Depth:</span>
+                    <span>{DEPTH (KM)} km</span>
+                </div>
+                <div style=\"border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 3px 0; padding-top: 3px;\">
+                    <div style=\"display: flex; justify-content: space-between; margin-bottom: 2px;\">
+                        <span>From:</span>
+                        <span>{AREA}</span>
+                    </div>
+                    <div style=\"display: flex; justify-content: space-between; margin-bottom: 2px;\">
+                        <span>To:</span>
+                        <span>{NEXT_AREA}</span>
+                    </div>
+                </div>
             </div>
-            <div class='legend-container' style='margin-top:12px;'>
-                <div class='legend-marker' style='background-color: rgba(50, 180, 50, 0.8); border:1px solid white;'></div>
-                <div><strong>Green Lines:</strong> 2 - 24 hours between events</div>
-            </div>
-            <div class='legend-container' style='margin-top:12px;'>
-                <div class='legend-marker' style='background-color: rgba(200, 100, 50, 0.8); border:1px solid white;'></div>
-                <div><strong>Orange Lines:</strong> More than 24 hours between events</div>
-            </div>
-            <p style='margin-top:15px; font-size:0.9rem; opacity:0.8;'>The lines connect sequential events in the same region, showing the time relationship between earthquakes.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div style='background-color:#121212; padding:20px; border-radius:8px; color:white; border:1px solid rgba(255,255,255,0.1);'>
-            <h4 style='color:#4d94ff; font-size:1.2rem; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:8px; margin-bottom:12px;'>Earthquake Magnitude Scale (Circle Size)</h4>
-            <p>Circles on the map are sized proportionally to the earthquake's magnitude:</p>
-            <div style='margin-left:10px; margin-top:10px;'>
-                <div style='display:flex; align-items:center; margin-bottom:8px;'>
-                    <div style='width:10px; height:10px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
-                    <div><strong>Minor:</strong> 2.0 - 3.9 (Smallest Circles)</div>
-                </div>
-                <div style='display:flex; align-items:center; margin-bottom:8px;'>
-                    <div style='width:15px; height:15px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
-                    <div><strong>Light:</strong> 4.0 - 4.9</div>
-                </div>
-                <div style='display:flex; align-items:center; margin-bottom:8px;'>
-                    <div style='width:20px; height:20px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
-                    <div><strong>Moderate:</strong> 5.0 - 5.9</div>
-                </div>
-                <div style='display:flex; align-items:center; margin-bottom:8px;'>
-                    <div style='width:25px; height:25px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
-                    <div><strong>Strong:</strong> 6.0 - 6.9</div>
-                </div>
-                <div style='display:flex; align-items:center;'>
-                    <div style='width:30px; height:30px; background-color:rgba(220,100,100,0.8); border-radius:50%; margin-right:10px; border:1px solid white;'></div>
-                    <div><strong>Major:</strong> 7.0 or greater (Largest Circles)</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """,
+            "style": {
+                "backgroundColor": "transparent",
+                "color": "white"
+            }
+        }
+    ))
+else:
+    st.error("Please select at least one layer.")
+
+

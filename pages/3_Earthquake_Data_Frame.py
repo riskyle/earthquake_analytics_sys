@@ -214,25 +214,6 @@ filtered_df = filtered_df[filtered_df["PROVINCE"].isin(selected_provinces)]
 if selected_categories is not None and "CATEGORY" in df.columns:
     filtered_df = filtered_df[filtered_df["CATEGORY"].isin(selected_categories)]
 
-# Add metrics to the sidebar
-with st.sidebar:
-    st.markdown("### 📊 Current Selection")
-    
-    # Calculate metrics
-    record_count = len(filtered_df)
-    avg_magnitude = filtered_df["MAGNITUDE"].mean() if record_count > 0 else 0
-    max_magnitude = filtered_df["MAGNITUDE"].max() if record_count > 0 else 0
-    date_range_days = (end_date - start_date).days
-    
-    # Display metrics in a grid
-    col1, col2 = st.columns(2)
-    col1.metric("Total Records", f"{record_count:,}")
-    col2.metric("Avg Magnitude", f"{avg_magnitude:.2f}")
-    
-    col3, col4 = st.columns(2)
-    col3.metric("Max Magnitude", f"{max_magnitude:.2f}")
-    col4.metric("Date Range", f"{date_range_days} days")
-
 # Main content area with tabs
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Magnitude by Category", 
@@ -893,11 +874,3 @@ with tab4:
             )
             
             st.plotly_chart(fig2, use_container_width=True)
-
-# Add a footer with information
-st.markdown("""
-<div class="divider"></div>
-<p style="text-align: center; color: #666; font-size: 0.8rem;">
-    Earthquake Data Analysis Dashboard | Data source: Philippine Seismological Network
-</p>
-""", unsafe_allow_html=True)

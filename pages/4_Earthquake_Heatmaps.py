@@ -56,16 +56,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# # Improved header with better styling
-# st.markdown(
-#     """
-#     <h1 class='main-header'>🌋 Earthquake Intensity Heatmap Visualization 🌍</h1>
-#     <p class='description'>
-#         Interactive heatmap visualizations showing earthquake magnitude distribution and epicenter density across the Philippines.
-#     </p>
-#     """, unsafe_allow_html=True
-# )
-
 # Create tabs for better organization
 tab1, tab2 = st.tabs(["🗾 Earthquake Intensity Heatmap", "🌊 Ripple Animation"])
 
@@ -257,8 +247,8 @@ with st.sidebar:
     st.markdown("### 📊 Current Selection")
     col1, col2 = st.columns(2)
     col1.metric("Total Records", f"{len(filtered_df):,}")
-    col2.metric("Avg Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")  
-
+    col2.metric("Avg Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")
+    
 # Tab 1: Earthquake Intensity Heatmap
 with tab1:
     st.markdown("<h2 class='sub-header'>🗾 Earthquake Intensity Heatmap Visualization</h2>", unsafe_allow_html=True)
@@ -271,19 +261,7 @@ with tab1:
     
     # Map view controls section
     st.markdown("<h4 style='color: #ff5733; margin-top: 15px;'>Map View Controls</h4>", unsafe_allow_html=True)
-    
-    # Arrange controls in columns
-    view_col1, view_col2, view_col3 = st.columns(3)
-    
-    with view_col1:
-        pitch = st.slider("View Angle (tilt)", 0, 60, 30, help="Adjust the tilt angle of the map")
-    
-    with view_col2:
-        bearing = st.slider("Rotation", 0, 359, 0, help="Rotate the map view")
-    
-    with view_col3:
-        zoom = st.slider("Zoom Level", 4, 10, 5, help="Adjust zoom level")
-    
+
     # Map style selection
     map_style = st.selectbox(
         "Map Style",
@@ -339,9 +317,9 @@ with tab1:
             view_state = pdk.ViewState(
                 latitude=center_lat,
                 longitude=center_lon,
-                zoom=zoom,
-                pitch=pitch,
-                bearing=bearing
+                pitch=45,
+                bearing=0,
+                zoom=5.5
             )
             
             # Create heatmap layer
@@ -470,20 +448,6 @@ with tab1:
             """
             
             st.markdown(intensity_scale_html, unsafe_allow_html=True)
-            
-            # Display statistics - keep the existing code
-            with st.expander("📊 View Statistics", expanded=True):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Events", len(filtered_df))
-                    st.metric("Average Magnitude", f"{filtered_df['MAGNITUDE'].mean():.2f}")
-                with col2:
-                    st.metric("Maximum Magnitude", f"{filtered_df['MAGNITUDE'].max():.2f}")
-                    st.metric("Minimum Magnitude", f"{filtered_df['MAGNITUDE'].min():.2f}")
-                with col3:
-                    st.metric("Date Range", f"{start_date} to {end_date}")
-                    if "CATEGORY" in filtered_df.columns:
-                        st.metric("Categories", len(filtered_df["CATEGORY"].unique()))
             
         except Exception as e:
             st.error(f"Error generating heatmap: {str(e)}")
@@ -699,11 +663,3 @@ with tab2:
             tooltip={"text": "Magnitude: {MAGNITUDE}\nArea: {AREA}\nProvince: {PROVINCE}\nDate/Time: {DATE_STR}"},
             map_style="mapbox://styles/mapbox/satellite-streets-v11"
         ))
-
-# Add a footer with information
-st.markdown("""
-<div class="divider"></div>
-<p style="text-align: center; color: #666; font-size: 0.8rem;">
-    Earthquake Intensity Heatmap Visualization | Data source: Philippine Seismological Network
-</p>
-""", unsafe_allow_html=True)

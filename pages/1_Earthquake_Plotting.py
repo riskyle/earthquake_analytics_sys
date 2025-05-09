@@ -242,29 +242,6 @@ if province_selected != "All":
 if area_selected != "All":
     filtered_df = filtered_df[filtered_df["AREA"] == area_selected]
 
-# Add metrics to the sidebar
-with st.sidebar:
-    st.markdown("### 📊 Current Selection")
-    
-    # Calculate metrics
-    record_count = len(filtered_df)
-    avg_magnitude = filtered_df["MAGNITUDE"].mean() if record_count > 0 else 0
-    max_magnitude = filtered_df["MAGNITUDE"].max() if record_count > 0 else 0
-    date_range_days = (end_date - start_date).days
-    
-    # Display metrics in a grid
-    col1, col2 = st.columns(2)
-    col1.metric("Total Records", f"{record_count:,}")
-    col2.metric("Avg Magnitude", f"{avg_magnitude:.2f}")
-    
-    col3, col4 = st.columns(2)
-    col3.metric("Max Magnitude", f"{max_magnitude:.2f}")
-    col4.metric("Date Range", f"{date_range_days} days")
-    
-    # Information about other tabs
-    st.markdown("### 📊 Additional Analysis")
-    st.info("For trend analysis and monthly distribution, please check the 'Earthquake Data Frame' page.")
-
 # Time Series Visualization
 st.markdown("<h2 class='sub-header'>📈 Earthquake Time Series Animation</h2>", unsafe_allow_html=True)
 
@@ -407,11 +384,3 @@ if not filtered_df.empty:
             status_text.markdown("**0%** Reset Complete")
 else:
     st.warning("No data available for the selected filters. Please adjust your filter criteria.")
-
-# Add a footer with information
-st.markdown("""
-<div class="divider"></div>
-<p style="text-align: center; color: #666; font-size: 0.8rem;">
-    Earthquake Time Series Animation Tool | Data source: Philippine Seismological Network
-</p>
-""", unsafe_allow_html=True)
